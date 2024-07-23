@@ -42,6 +42,7 @@ from crewai.utilities.formatter import (
     aggregate_raw_outputs_from_task_outputs,
     aggregate_raw_outputs_from_tasks,
 )
+from crewai.utilities.planning_handler import CrewPlanner
 from crewai.utilities.task_output_storage_handler import TaskOutputStorageHandler
 from crewai.utilities.training_handler import CrewTrainingHandler
 
@@ -73,6 +74,7 @@ class Crew(BaseModel):
         task_callback: Callback to be executed after each task for every agents execution.
         step_callback: Callback to be executed after each step for every agents execution.
         share_crew: Whether you want to share the complete crew information and execution with crewAI to make the library better, and allow us to train models.
+        planning: Plan the crew execution and add the plan to the crew.
     """
 
     __hash__ = object.__hash__  # type: ignore
@@ -147,6 +149,10 @@ class Crew(BaseModel):
     output_log_file: Optional[Union[bool, str]] = Field(
         default=False,
         description="output_log_file",
+    )
+    planning: Optional[bool] = Field(
+        default=False,
+        description="Plan the crew execution and add the plan to the crew.",
     )
     task_execution_output_json_files: Optional[List[str]] = Field(
         default=None,
@@ -453,6 +459,9 @@ class Crew(BaseModel):
 
             agent.create_agent_executor()
 
+        if self.planning:
+            self._handle_crew_planning()
+
         metrics = []
 
         if self.process == Process.sequential:
@@ -546,6 +555,19 @@ class Crew(BaseModel):
         self.usage_metrics = total_usage_metrics
         self._task_output_handler.reset()
         return results
+
+    def _handle_crew_planning(self):
+        """Handles the Crew planning."""
+        self._logger.log("info", "Planning the crew execution")
+        result = CrewPlanner(self.tasks)._handle_crew_planning()
+
+        if result is not None and hasattr(result, "list_of_plans_per_task"):
+            for task, step_plan in zip(self.tasks, result.list_of_plans_per_task):
+                task.description += step_plan
+        else:
+            self._logger.log(
+                "info", "Something went wrong with the planning process of the Crew"
+            )
 
     def _store_execution_log(
         self,
@@ -655,7 +677,6 @@ class Crew(BaseModel):
                 context = self._get_context(
                     task, [last_sync_output] if last_sync_output else []
                 )
-                self._log_task_start(task, agent_to_use.role)
                 future = task.execute_async(
                     agent=agent_to_use,
                     context=context,
@@ -668,7 +689,6 @@ class Crew(BaseModel):
                     futures.clear()
 
                 context = self._get_context(task, task_outputs)
-                self._log_task_start(task, agent_to_use.role)
                 task_output = task.execute_sync(
                     agent=agent_to_use,
                     context=context,
@@ -823,7 +843,7 @@ class Crew(BaseModel):
             None,
         )
 
-    def replay_from_task(
+    def replay(
         self, task_id: str, inputs: Optional[Dict[str, Any]] = None
     ) -> CrewOutput:
         stored_outputs = self._task_output_handler.load()
@@ -945,6 +965,12 @@ class Crew(BaseModel):
                 total_usage_metrics[key] += token_sum.get(key, 0)
 
         return total_usage_metrics
+
+    def test(
+        self, n_iterations: int, model: str, inputs: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Test the crew with the given inputs."""
+        pass
 
     def __repr__(self):
         return f"Crew(id={self.id}, process={self.process}, number_of_agents={len(self.agents)}, number_of_tasks={len(self.tasks)})"
