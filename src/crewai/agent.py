@@ -125,11 +125,11 @@ class Agent(BaseAgent):
                 self.llm.callbacks.append(token_handler)
 
             if agentops and not any(
-                isinstance(handler, agentops.partners.LangchainCallbackHandler)
+                isinstance(handler, agentops.LangchainCallbackHandler)
                 for handler in self.llm.callbacks
             ):
                 agentops.stop_instrumenting()
-                self.llm.callbacks.append(agentops.partners.LangchainCallbackHandler())
+                self.llm.callbacks.append(agentops.LangchainCallbackHandler())
 
         if not self.agent_executor:
             if not self.cache_handler:
