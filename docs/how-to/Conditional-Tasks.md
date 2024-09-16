@@ -7,9 +7,10 @@ description: Learn how to use conditional tasks in a crewAI kickoff
 
 Conditional Tasks in crewAI allow for dynamic workflow adaptation based on the outcomes of previous tasks. This powerful feature enables crews to make decisions and execute tasks selectively, enhancing the flexibility and efficiency of your AI-driven processes.
 
+## Example Usage
+
 ```python
 from typing import List
-
 from pydantic import BaseModel
 from crewai import Agent, Crew
 from crewai.tasks.conditional_task import ConditionalTask
@@ -17,11 +18,10 @@ from crewai.tasks.task_output import TaskOutput
 from crewai.task import Task
 from crewai_tools import SerperDevTool
 
-
 # Define a condition function for the conditional task
-# if false task will be skipped, true, then execute task
+# If false, the task will be skipped, if true, then execute the task.
 def is_data_missing(output: TaskOutput) -> bool:
-    return len(output.pydantic.events) < 10: # this will skip this task
+    return len(output.pydantic.events) < 10  # this will skip this task
 
 # Define the agents
 data_fetcher_agent = Agent(
@@ -29,27 +29,25 @@ data_fetcher_agent = Agent(
     goal="Fetch data online using Serper tool",
     backstory="Backstory 1",
     verbose=True,
-    tools=[SerperDevTool()],
+    tools=[SerperDevTool()]
 )
 
 data_processor_agent = Agent(
     role="Data Processor",
     goal="Process fetched data",
     backstory="Backstory 2",
-    verbose=True,
+    verbose=True
 )
 
 summary_generator_agent = Agent(
     role="Summary Generator",
     goal="Generate summary from fetched data",
     backstory="Backstory 3",
-    verbose=True,
+    verbose=True
 )
-
 
 class EventOutput(BaseModel):
     events: List[str]
-
 
 task1 = Task(
     description="Fetch data about events in San Francisco using Serper tool",
@@ -64,14 +62,14 @@ conditional_task = ConditionalTask(
         fetch more events using Serper tool so that
         we have a total of 10 events in SF this week..
         """,
-    expected_output="List of 10 Things to do in SF this week ",
+    expected_output="List of 10 Things to do in SF this week",
     condition=is_data_missing,
     agent=data_processor_agent,
 )
 
 task3 = Task(
     description="Generate summary of events in San Francisco from fetched data",
-    expected_output="summary_generated",
+    expected_output="A complete report on the customer and their customers and competitors, including their demographics, preferences, market positioning and audience engagement.",
     agent=summary_generator_agent,
 )
 
@@ -80,8 +78,10 @@ crew = Crew(
     agents=[data_fetcher_agent, data_processor_agent, summary_generator_agent],
     tasks=[task1, conditional_task, task3],
     verbose=True,
+    planning=True
 )
 
+# Run the crew
 result = crew.kickoff()
 print("results", result)
 ```

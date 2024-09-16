@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ from pydantic_core import ValidationError
 
 
 def test_task_tool_reflect_agent_tools():
-    from langchain.tools import tool
+    from crewai_tools import tool
 
     @tool
     def fake_tool() -> None:
@@ -38,7 +39,7 @@ def test_task_tool_reflect_agent_tools():
 
 
 def test_task_tool_takes_precedence_over_agent_tools():
-    from langchain.tools import tool
+    from crewai_tools import tool
 
     @tool
     def fake_tool() -> None:
@@ -97,6 +98,7 @@ def test_task_callback():
     task_completed = MagicMock(return_value="done")
 
     task = Task(
+        name="Brainstorm",
         description="Give me a list of 5 interesting ideas to explore for na article, what makes them unique and interesting.",
         expected_output="Bullet point list of 5 interesting ideas.",
         agent=researcher,
@@ -107,6 +109,10 @@ def test_task_callback():
         execute.return_value = "ok"
         task.execute_sync(agent=researcher)
         task_completed.assert_called_once_with(task.output)
+
+        assert task.output.description == task.description
+        assert task.output.expected_output == task.expected_output
+        assert task.output.name == task.name
 
 
 def test_task_callback_returns_task_output():
@@ -148,6 +154,8 @@ def test_task_callback_returns_task_output():
             "json_dict": None,
             "agent": researcher.role,
             "summary": "Give me a list of 5 interesting ideas to explore...",
+            "name": None,
+            "expected_output": "Bullet point list of 5 interesting ideas.",
             "output_format": OutputFormat.RAW,
         }
         assert output_dict == expected_output
@@ -187,7 +195,9 @@ def test_async_execution():
     )
 
     with patch.object(Agent, "execute_task", return_value="ok") as execute:
-        task.execute_async(agent=researcher)
+        execution = task.execute_async(agent=researcher)
+        result = execution.result()
+        assert result.raw == "ok"
         execute.assert_called_once_with(task=task, context=None, tools=[])
 
 
@@ -231,8 +241,6 @@ def test_output_pydantic_sequential():
 
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_output_pydantic_hierarchical():
-    from langchain_openai import ChatOpenAI
-
     class ScoreOutput(BaseModel):
         score: int
 
@@ -254,11 +262,11 @@ def test_output_pydantic_hierarchical():
         agents=[scorer],
         tasks=[task],
         process=Process.hierarchical,
-        manager_llm=ChatOpenAI(model="gpt-4o"),
+        manager_llm="gpt-4o",
     )
     result = crew.kickoff()
     assert isinstance(result.pydantic, ScoreOutput)
-    assert result.to_dict() == {"score": 4}
+    assert result.to_dict() == {"score": 5}
 
 
 @pytest.mark.vcr(filter_headers=["authorization"])
@@ -277,6 +285,7 @@ def test_output_json_sequential():
         description="Give me an integer score between 1-5 for the following title: 'The impact of AI in the future of work'",
         expected_output="The score of the title.",
         output_json=ScoreOutput,
+        output_file="score.json",
         agent=scorer,
     )
 
@@ -288,8 +297,6 @@ def test_output_json_sequential():
 
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_output_json_hierarchical():
-    from langchain_openai import ChatOpenAI
-
     class ScoreOutput(BaseModel):
         score: int
 
@@ -311,7 +318,7 @@ def test_output_json_hierarchical():
         agents=[scorer],
         tasks=[task],
         process=Process.hierarchical,
-        manager_llm=ChatOpenAI(model="gpt-4o"),
+        manager_llm="gpt-4o",
     )
     result = crew.kickoff()
     assert '{"score": 4}' == result.json
@@ -373,8 +380,6 @@ def test_output_json_dict_sequential():
 
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_output_json_dict_hierarchical():
-    from langchain_openai import ChatOpenAI
-
     class ScoreOutput(BaseModel):
         score: int
 
@@ -396,7 +401,7 @@ def test_output_json_dict_hierarchical():
         agents=[scorer],
         tasks=[task],
         process=Process.hierarchical,
-        manager_llm=ChatOpenAI(model="gpt-4o"),
+        manager_llm="gpt-4o",
     )
     result = crew.kickoff()
     assert {"score": 5} == result.json_dict
@@ -405,8 +410,6 @@ def test_output_json_dict_hierarchical():
 
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_output_pydantic_to_another_task():
-    from langchain_openai import ChatOpenAI
-
     class ScoreOutput(BaseModel):
         score: int
 
@@ -415,8 +418,8 @@ def test_output_pydantic_to_another_task():
         goal="Score the title",
         backstory="You're an expert scorer, specialized in scoring titles.",
         allow_delegation=False,
-        llm=ChatOpenAI(model="gpt-4-0125-preview"),
-        function_calling_llm=ChatOpenAI(model="gpt-3.5-turbo-0125"),
+        llm="gpt-4-0125-preview",
+        function_calling_llm="gpt-3.5-turbo-0125",
         verbose=True,
     )
 
@@ -440,7 +443,7 @@ def test_output_pydantic_to_another_task():
     assert isinstance(
         pydantic_result, ScoreOutput
     ), "Expected pydantic result to be of type ScoreOutput"
-    assert 5 == pydantic_result.score
+    assert 3 == pydantic_result.score
 
 
 @pytest.mark.vcr(filter_headers=["authorization"])
@@ -471,7 +474,7 @@ def test_output_json_to_another_task():
 
     crew = Crew(agents=[scorer], tasks=[task1, task2])
     result = crew.kickoff()
-    assert '{"score": 5}' == result.json
+    assert '{"score": 4}' == result.json
 
 
 @pytest.mark.vcr(filter_headers=["authorization"])
@@ -519,11 +522,13 @@ def test_save_task_json_output():
     )
 
     crew = Crew(agents=[scorer], tasks=[task])
+    crew.kickoff()
 
-    with patch.object(Task, "_save_file") as save_file:
-        save_file.return_value = None
-        crew.kickoff()
-        save_file.assert_called_once_with({"score": 4})
+    output_file_exists = os.path.exists("score.json")
+    assert output_file_exists
+    assert {"score": 4} == json.loads(open("score.json").read())
+    if output_file_exists:
+        os.remove("score.json")
 
 
 @pytest.mark.vcr(filter_headers=["authorization"])
@@ -547,11 +552,13 @@ def test_save_task_pydantic_output():
     )
 
     crew = Crew(agents=[scorer], tasks=[task])
+    crew.kickoff()
 
-    with patch.object(Task, "_save_file") as save_file:
-        save_file.return_value = None
-        crew.kickoff()
-        save_file.assert_called_once_with('{"score":4}')
+    output_file_exists = os.path.exists("score.json")
+    assert output_file_exists
+    assert {"score": 4} == json.loads(open("score.json").read())
+    if output_file_exists:
+        os.remove("score.json")
 
 
 @pytest.mark.vcr(filter_headers=["authorization"])
@@ -588,8 +595,6 @@ def test_custom_converter_cls():
 
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_increment_delegations_for_hierarchical_process():
-    from langchain_openai import ChatOpenAI
-
     scorer = Agent(
         role="Scorer",
         goal="Score the title",
@@ -606,7 +611,7 @@ def test_increment_delegations_for_hierarchical_process():
         agents=[scorer],
         tasks=[task],
         process=Process.hierarchical,
-        manager_llm=ChatOpenAI(model="gpt-4o"),
+        manager_llm="gpt-4o",
     )
 
     with patch.object(Task, "increment_delegations") as increment_delegations:
@@ -652,7 +657,6 @@ def test_increment_delegations_for_sequential_process():
 @pytest.mark.vcr(filter_headers=["authorization"])
 def test_increment_tool_errors():
     from crewai_tools import tool
-    from langchain_openai import ChatOpenAI
 
     @tool
     def scoring_examples() -> None:
@@ -675,13 +679,13 @@ def test_increment_tool_errors():
         agents=[scorer],
         tasks=[task],
         process=Process.hierarchical,
-        manager_llm=ChatOpenAI(model="gpt-4-0125-preview"),
+        manager_llm="gpt-4-0125-preview",
     )
 
     with patch.object(Task, "increment_tools_errors") as increment_tools_errors:
         increment_tools_errors.return_value = None
         crew.kickoff()
-        assert len(increment_tools_errors.mock_calls) == 3
+        assert len(increment_tools_errors.mock_calls) == 9
 
 
 def test_task_definition_based_on_dict():
@@ -690,7 +694,7 @@ def test_task_definition_based_on_dict():
         "expected_output": "The score of the title.",
     }
 
-    task = Task(config=config)
+    task = Task(**config)
 
     assert task.description == config["description"]
     assert task.expected_output == config["expected_output"]
@@ -703,7 +707,7 @@ def test_conditional_task_definition_based_on_dict():
         "expected_output": "The score of the title.",
     }
 
-    task = ConditionalTask(config=config, condition=lambda x: True)
+    task = ConditionalTask(**config, condition=lambda x: True)
 
     assert task.description == config["description"]
     assert task.expected_output == config["expected_output"]

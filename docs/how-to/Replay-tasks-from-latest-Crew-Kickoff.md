@@ -1,6 +1,7 @@
 ---
 title: Replay Tasks from Latest Crew Kickoff
 description: Replay tasks from the latest crew.kickoff(...)
+
 ---
 
 ## Introduction
@@ -11,39 +12,47 @@ You must run `crew.kickoff()` before you can replay a task. Currently, only the 
 
 Here's an example of how to replay from a task:
 
-### Replaying from specific task Using the CLI
+### Replaying from Specific Task Using the CLI
 To use the replay feature, follow these steps:
 
 1. Open your terminal or command prompt.
 2. Navigate to the directory where your CrewAI project is located.
-3. Run the following command:
+3. Run the following commands:
 
-To view latest kickoff task_ids use:
+To view the latest kickoff task_ids use:
 ```shell
 crewai log-tasks-outputs
 ```
 
-Once you have your task_id to replay from use:
+Once you have your `task_id` to replay, use:
 ```shell
 crewai replay -t <task_id>
 ```
 
+**Note:** Ensure `crewai` is installed and configured correctly in your development environment.
 
-### Replaying from a task Programmatically
+### Replaying from a Task Programmatically
 To replay from a task programmatically, use the following steps:
 
-1. Specify the task_id and input parameters for the replay process.
+1. Specify the `task_id` and input parameters for the replay process.
 2. Execute the replay command within a try-except block to handle potential errors.
 
 ```python
-   def replay():
+  def replay():
     """
     Replay the crew execution from a specific task.
     """
     task_id = '<task_id>'
-    inputs = {"topic": "CrewAI Training"} # this is optional, you can pass in the inputs you want to replay otherwise uses the previous kickoffs inputs
+    inputs = {"topic": "CrewAI Training"}  # This is optional; you can pass in the inputs you want to replay; otherwise, it uses the previous kickoff's inputs.
     try:
         YourCrewName_Crew().crew().replay(task_id=task_id, inputs=inputs)
 
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         raise Exception(f"An error occurred while replaying the crew: {e}")
+
+    except Exception as e:
+        raise Exception(f"An unexpected error occurred: {e}")
+```
+
+## Conclusion
+With the above enhancements and detailed functionality, replaying specific tasks in CrewAI has been made more efficient and robust. Ensure you follow the commands and steps precisely to make the most of these features.

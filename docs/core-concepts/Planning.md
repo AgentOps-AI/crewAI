@@ -41,13 +41,11 @@ my_crew = Crew(
 )
 ```
 
-
 ### Example
 
-When running the base case example, you will see something like the following output, which represents the output of the AgentPlanner responsible for creating the step-by-step logic to add to the Agents tasks.
+When running the base case example, you will see something like the following output, which represents the output of the AgentPlanner responsible for creating the step-by-step logic to add to the Agents' tasks.
 
-```bash
-
+```
 [2024-07-15 16:49:11][INFO]: Planning the crew execution
 **Step-by-Step Plan for Task Execution**
 
@@ -98,7 +96,7 @@ A list with 10 bullet points of the most relevant information about AI LLMs.
 
 **Agent Goal:** Create detailed reports based on AI LLMs data analysis and research findings
 
-**Task Expected Output:** A fully fledge report with the main topics, each with a full section of information. Formatted as markdown without '```'
+**Task Expected Output:** A fully fledged report with the main topics, each with a full section of information. Formatted as markdown without '```'
 
 **Task Tools:** None specified
 
@@ -132,7 +130,4 @@ A list with 10 bullet points of the most relevant information about AI LLMs.
    - Double-check formatting and make any necessary adjustments.
 
 **Expected Output:**
-A fully-fledged report with the main topics, each with a full section of information. Formatted as markdown without '```'.
-
----
-```
+A fully fledged report with the main topics, each with a full section of information. Formatted as markdown without '```'.
