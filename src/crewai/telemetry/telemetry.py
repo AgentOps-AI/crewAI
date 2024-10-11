@@ -5,8 +5,8 @@ import json
 import os
 import platform
 import warnings
-from typing import TYPE_CHECKING, Any, Optional
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Optional
 
 
 @contextmanager
@@ -53,7 +53,8 @@ class Telemetry:
             self.resource = Resource(
                 attributes={SERVICE_NAME: "crewAI-telemetry"},
             )
-            self.provider = TracerProvider(resource=self.resource)
+            with suppress_warnings():
+                self.provider = TracerProvider(resource=self.resource)
 
             processor = BatchSpanProcessor(
                 OTLPSpanExporter(
@@ -116,8 +117,12 @@ class Telemetry:
                                     "max_iter": agent.max_iter,
                                     "max_rpm": agent.max_rpm,
                                     "i18n": agent.i18n.prompt_file,
-                                    "function_calling_llm": agent.function_calling_llm,
-                                    "llm": agent.llm,
+                                    "function_calling_llm": (
+                                        agent.function_calling_llm.model
+                                        if agent.function_calling_llm
+                                        else ""
+                                    ),
+                                    "llm": agent.llm.model,
                                     "delegation_enabled?": agent.allow_delegation,
                                     "allow_code_execution?": agent.allow_code_execution,
                                     "max_retry_limit": agent.max_retry_limit,
@@ -142,9 +147,9 @@ class Telemetry:
                                     "expected_output": task.expected_output,
                                     "async_execution?": task.async_execution,
                                     "human_input?": task.human_input,
-                                    "agent_role": task.agent.role
-                                    if task.agent
-                                    else "None",
+                                    "agent_role": (
+                                        task.agent.role if task.agent else "None"
+                                    ),
                                     "agent_key": task.agent.key if task.agent else None,
                                     "context": (
                                         [task.description for task in task.context]
@@ -181,8 +186,12 @@ class Telemetry:
                                     "verbose?": agent.verbose,
                                     "max_iter": agent.max_iter,
                                     "max_rpm": agent.max_rpm,
-                                    "function_calling_llm": agent.function_calling_llm,
-                                    "llm": agent.llm,
+                                    "function_calling_llm": (
+                                        agent.function_calling_llm.model
+                                        if agent.function_calling_llm
+                                        else ""
+                                    ),
+                                    "llm": agent.llm.model,
                                     "delegation_enabled?": agent.allow_delegation,
                                     "allow_code_execution?": agent.allow_code_execution,
                                     "max_retry_limit": agent.max_retry_limit,
@@ -205,9 +214,9 @@ class Telemetry:
                                     "id": str(task.id),
                                     "async_execution?": task.async_execution,
                                     "human_input?": task.human_input,
-                                    "agent_role": task.agent.role
-                                    if task.agent
-                                    else "None",
+                                    "agent_role": (
+                                        task.agent.role if task.agent else "None"
+                                    ),
                                     "agent_key": task.agent.key if task.agent else None,
                                     "tools_names": [
                                         tool.name.casefold()
@@ -296,7 +305,7 @@ class Telemetry:
                 self._add_attribute(span, "tool_name", tool_name)
                 self._add_attribute(span, "attempts", attempts)
                 if llm:
-                    self._add_attribute(span, "llm", llm)
+                    self._add_attribute(span, "llm", llm.model)
                 span.set_status(Status(StatusCode.OK))
                 span.end()
             except Exception:
@@ -316,7 +325,7 @@ class Telemetry:
                 self._add_attribute(span, "tool_name", tool_name)
                 self._add_attribute(span, "attempts", attempts)
                 if llm:
-                    self._add_attribute(span, "llm", llm)
+                    self._add_attribute(span, "llm", llm.model)
                 span.set_status(Status(StatusCode.OK))
                 span.end()
             except Exception:
@@ -334,7 +343,7 @@ class Telemetry:
                     pkg_resources.get_distribution("crewai").version,
                 )
                 if llm:
-                    self._add_attribute(span, "llm", llm)
+                    self._add_attribute(span, "llm", llm.model)
                 span.set_status(Status(StatusCode.OK))
                 span.end()
             except Exception:
@@ -487,7 +496,7 @@ class Telemetry:
                                 "max_iter": agent.max_iter,
                                 "max_rpm": agent.max_rpm,
                                 "i18n": agent.i18n.prompt_file,
-                                "llm": agent.llm,
+                                "llm": agent.llm.model,
                                 "delegation_enabled?": agent.allow_delegation,
                                 "tools_names": [
                                     tool.name.casefold() for tool in agent.tools or []
@@ -563,3 +572,38 @@ class Telemetry:
             return span.set_attribute(key, value)
         except Exception:
             pass
+
+    def flow_creation_span(self, flow_name: str):
+        if self.ready:
+            try:
+                tracer = trace.get_tracer("crewai.telemetry")
+                span = tracer.start_span("Flow Creation")
+                self._add_attribute(span, "flow_name", flow_name)
+                span.set_status(Status(StatusCode.OK))
+                span.end()
+            except Exception:
+                pass
+
+    def flow_plotting_span(self, flow_name: str, node_names: list[str]):
+        if self.ready:
+            try:
+                tracer = trace.get_tracer("crewai.telemetry")
+                span = tracer.start_span("Flow Plotting")
+                self._add_attribute(span, "flow_name", flow_name)
+                self._add_attribute(span, "node_names", json.dumps(node_names))
+                span.set_status(Status(StatusCode.OK))
+                span.end()
+            except Exception:
+                pass
+
+    def flow_execution_span(self, flow_name: str, node_names: list[str]):
+        if self.ready:
+            try:
+                tracer = trace.get_tracer("crewai.telemetry")
+                span = tracer.start_span("Flow Execution")
+                self._add_attribute(span, "flow_name", flow_name)
+                self._add_attribute(span, "node_names", json.dumps(node_names))
+                span.set_status(Status(StatusCode.OK))
+                span.end()
+            except Exception:
+                pass
